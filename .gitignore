@@ -1,0 +1,5 @@
+.env
+
+make_faiss.py
+documents/
+__pycache__/
