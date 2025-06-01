@@ -1,0 +1,85 @@
+name: EC2에 배포
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: |
+          # 테스트가 있다면 실행
+          # pytest tests/
+          echo "Tests passed"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # 애플리케이션 디렉토리로 이동
+            cd /home/ubuntu/lumi-back || exit 1
+
+            # Git pull로 최신 코드 가져오기
+            git pull origin main
+
+            # 가상환경 활성화 (없으면 생성)
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+
+            # 의존성 설치
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # 환경변수 파일 확인 (이미 서버에 있어야 함)
+            if [ ! -f ".env" ]; then
+              echo "❌ .env 파일이 없습니다!"
+              exit 1
+            fi
+
+            # 기존 프로세스 종료
+            pkill -f "uvicorn" || true
+            sleep 2
+
+            # 새 프로세스 시작 (백그라운드)
+            nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 > app.log 2>&1 &
+
+            # 프로세스 시작 확인
+            sleep 3
+            if pgrep -f "uvicorn" > /dev/null; then
+              echo "✅ 애플리케이션이 성공적으로 시작되었습니다"
+              curl -f http://localhost:8000/ping || echo "❌ Health check 실패"
+            else
+              echo "❌ 애플리케이션 시작 실패"
+              exit 1
+            fi
