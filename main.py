@@ -89,6 +89,7 @@ def analyze_and_store_response(request_id: UUID, full_prompt: List[dict], messag
             {"role": "user", "content": "이 대화 내용을 분석해줘. 참고 문서:\n\n" + "\n\n".join(similar_chunks)}
         ]
         
+        
         response_text = run_llm_analysis(messages=final_prompt, character_name="")
         
         # RunPod로 분석 요청
