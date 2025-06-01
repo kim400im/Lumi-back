@@ -16,55 +16,30 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            echo "=== 1. 디렉토리 이동 ==="
-            cd /home/ubuntu/lumi-back || { echo "디렉토리 이동 실패"; exit 1; }
-            echo "현재 위치: $(pwd)"
-
-            echo "=== 2. Git pull ==="
+            cd /home/ubuntu/lumi-back
             git pull origin main
-            echo "Git pull 완료"
 
-            echo "=== 3. 현재 프로세스 확인 ==="
-            ps aux | grep uvicorn | grep -v grep || echo "uvicorn 프로세스 없음"
-
-            echo "=== 4. 프로세스 종료 시도 ==="
-            pkill -f "uvicorn" || echo "종료할 프로세스 없음"
-            echo "프로세스 종료 완료"
-
-            echo "=== 5. 2초 대기 ==="
-            sleep 2
-            echo "대기 완료"
-
-            echo "=== 6. 가상환경 활성화 ==="
-            if [ -d "venv" ]; then
-              echo "venv 디렉토리 존재함"
-              source venv/bin/activate || { echo "가상환경 활성화 실패"; exit 1; }
-              echo "가상환경 활성화 완료"
-            else
-              echo "venv 디렉토리 없음"
-              exit 1
+            # PID 파일로 안전하게 종료
+            if [ -f "uvicorn.pid" ]; then
+              echo "기존 서버 종료 중..."
+              kill $(cat uvicorn.pid) 2>/dev/null || true
+              rm -f uvicorn.pid
+              sleep 2
             fi
 
-            echo "=== 7. 서버 시작 ==="
-            nohup uvicorn main:app --host 0.0.0.0 --port 8000 > app.log 2>&1 &
-            echo "서버 시작 명령 실행 완료"
+            source venv/bin/activate
 
-            echo "=== 8. 3초 대기 ==="
+            # PID 저장하면서 서버 시작
+            uvicorn main:app --host 0.0.0.0 --port 8000 > app.log 2>&1 &
+            echo $! > uvicorn.pid
+
             sleep 3
-            echo "대기 완료"
 
-            echo "=== 9. 헬스체크 ==="
             if curl -s http://localhost:8000/ping > /dev/null; then
-              echo "✅ 배포 성공!"
+              echo "✅ 배포 성공! PID: $(cat uvicorn.pid)"
             else
-              echo "❌ 배포 실패 - 서버 응답 없음"
-              echo "앱 로그:"
-              tail -n 5 app.log || echo "로그 파일 없음"
+              echo "❌ 배포 실패"
               exit 1
             fi
-
-            echo "=== 10. 최종 프로세스 확인 ==="
-            ps aux | grep uvicorn | grep -v grep || echo "uvicorn 프로세스 없음"
-            echo "✅ 모든 단계 완료"
