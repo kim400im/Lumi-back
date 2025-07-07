@@ -37,7 +37,7 @@ client = OpenAI(
 def format_messages(messages: list[dict]) -> list[dict]:
     return [{"role": m["role"], "content": m["content"]} for m in messages]
 
-def run_llm_analysis(messages: list[dict], character_name: str) -> str:
+def run_llm_analysis(messages: list[dict], character_name: str, max_tokens: int = 512, temperature: float = 0.7) -> str:
     print("🔍 [LLM 분석 시작]")
     print(f"🧠 캐릭터 이름: {character_name}")
     print(f"🗒️ 총 메시지 수: {len(messages)}")
