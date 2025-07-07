@@ -39,30 +39,38 @@ def format_messages(messages: list[dict]) -> list[dict]:
 
 def run_llm_analysis(messages: list[dict], character_name: str, max_tokens: int = 512, temperature: float = 0.7) -> str:
     print("🔍 [LLM 분석 시작]")
-    print(f"🧠 캐릭터 이름: {character_name}")
-    print(f"🗒️ 총 메시지 수: {len(messages)}")
     
-    formatted_messages = [{"role": "system", "content": f"{character_name}와의 대화 내용을 분석해줘"}] + format_messages(messages)
-    print("📨 보낼 메시지 목록:")
-    for msg in formatted_messages:
-        print(f" - ({msg['role']}) {msg['content'][:100]}{'...' if len(msg['content']) > 100 else ''}")
+    # Llama 3.1 chat template 정의
+    chat_template = """{% for message in messages %}
+{{'<|start_header_id|>' + message['role'] + '<|end_header_id|>
+
+' + message['content'] + '<|eot_id|>' }}
+{% endfor %}
+{% if add_generation_prompt %}
+{{'<|start_header_id|>assistant<|end_header_id|>
+
+'}}
+{% endif %}"""
 
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
-            messages=formatted_messages,
-            temperature=temperature,  # ✅ 매개변수 사용
-            max_tokens=max_tokens,    # ✅ 매개변수 사용
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            extra_body={
+                "chat_template": chat_template  # ✅ chat template 추가
+            }
         )
-
+        
         print("✅ RunPod 응답 수신 완료")
         if response and hasattr(response, 'choices') and len(response.choices) > 0:
-            print("💬 분석 결과:")
-            print(response.choices[0].message.content.strip())
-            return response.choices[0].message.content.strip()
-
-        print("⚠️ RunPod 응답은 정상적이지만 분석 내용 없음")
-        return "❌ LLM 응답 없음"
+            result = response.choices[0].message.content.strip()
+            print(f"💬 분석 결과: {result[:100]}...")
+            return result
+        else:
+            print("⚠️ 응답은 있지만 내용이 없음")
+            return "❌ 응답 내용 없음"
     
     except Exception as e:
         print(f"❌ 예외 발생: {str(e)}")
