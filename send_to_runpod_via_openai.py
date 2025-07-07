@@ -51,8 +51,8 @@ def run_llm_analysis(messages: list[dict], character_name: str) -> str:
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=formatted_messages,
-            temperature=0.7,
-            max_tokens=512,
+            temperature=temperature,  # ✅ 매개변수 사용
+            max_tokens=max_tokens,    # ✅ 매개변수 사용
         )
 
         print("✅ RunPod 응답 수신 완료")
