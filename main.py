@@ -24,7 +24,7 @@ class ChatUploadRequest(BaseModel):
     messages: List[Message]
     ended_at: datetime
 
-# 응답 스키마
+# 응답 스키마 d
 class ChatUploadResponse(BaseModel):
     status: str
     received_messages: int
