@@ -7,6 +7,8 @@ from pprint import pprint
 import json
 from send_to_runpod_via_openai import run_llm_analysis, format_messages, find_similar_docs
 from send_to_runpod_via_openai import supabase_client
+from openai import OpenAI
+openai_client = OpenAI()
 
 
 app = FastAPI()
@@ -30,6 +32,32 @@ class ChatUploadResponse(BaseModel):
     received_messages: int
     analysis: str  # 분석 결과도 같이 반환
     
+
+def summarize_with_gpt(long_text: str) -> str:
+    prompt = [
+        {"role": "system", "content": "너는 긴 보안 분석 보고서를 간결히 요약하는 분석가다."},
+        {"role": "user", "content": f"""
+아래 보고서를 400~600토큰 이내로 요약해줘.
+반드시 아래 3가지만 포함해서 간결하게 작성할 것:
+
+1) 위험도 등급 (높음/중간/낮음)
+2) 핵심 발견사항 (3~5줄 bullet)
+3) 권장 조치 (1~2줄)
+
+보고서:
+{long_text}
+"""}
+    ]
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=prompt,
+        max_tokens=600,
+        temperature=0.2
+    )
+    return response.choices[0].message.content.strip()
+
+
 # api
 @app.get("/ping")
 def ping():
@@ -172,6 +200,8 @@ def analyze_and_store_response(request_id: UUID, full_prompt: List[dict], messag
             max_tokens=3000,  # 토큰 길이 증가
             temperature=0.3   # 일관성 있는 분석을 위해 낮은 temperature
         )
+        
+        summary_text = summarize_with_gpt(response_text)
 
         # RunPod로 분석 요청
         # 먼저 요청 시 저장된 user_id를 가져옴
@@ -183,7 +213,7 @@ def analyze_and_store_response(request_id: UUID, full_prompt: List[dict], messag
         supabase_client.table("analysis_results").insert({
             "request_id": str(request_id),
             "user_id": user_id,  # ✅ 여기 추가
-            "llm_response": response_text
+            "llm_response": summary_text
         }).execute()
 
         cleaned_text = response_text.encode("utf-8", "replace").decode("utf-8")
