@@ -30,7 +30,7 @@ class ChatUploadResponse(BaseModel):
     received_messages: int
     analysis: str  # 분석 결과도 같이 반환
     
-    
+# api
 @app.get("/ping")
 def ping():
     print("✅ ping 받음")
